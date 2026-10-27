@@ -37,13 +37,13 @@ The aggregate NumPy LICENSE also documents BSD-licensed OpenBLAS. Do not mislabe
 
 ## Acceptance gates and ownership
 
-**Issue #2:** retain exact dependency versions; produce CPU/CUDA hash locks and a concise direct/transitive/bundled-component table; list exceptions, source evidence, disposition and unresolved reviews. Inspect built source/project-wheel file lists. LICENSE/NOTICE describes shipped content; runtime docs disclose non-allowlist components prominently. Run a security scan and record maintainer disposition for findings. No automatic bundling or silent dependency changes to evade policy.
+**Issue #2:** retain exact dependency versions; produce the CPU hash lock, intended GPU install inputs and a concise direct/transitive/bundled-component table; list exceptions, source evidence, disposition and unresolved reviews. Inspect built source/project-wheel file lists. LICENSE/NOTICE describes shipped content; runtime docs disclose non-allowlist components prominently. Run a security scan and record maintainer disposition for findings. No automatic bundling or silent dependency changes to evade policy.
 
 **Issue #3:** verify exact tokenizer artifact grant/required notices; pinned immutable files and no pretrained weights/remote model code. If coverage cannot be established, bring a narrowly scoped replacement proposal to the maintainer rather than guessing rights.
 
 **Issue #8:** verify export contents and include applicable artifact notices. Export is local by default; do not apply a blanket Apache weight license without data/model rights review.
 
-**Issue #10:** inspect actual A100 runtime versions, vendor/native dependencies, measured behavior and separate installation instructions. CPU package inventory is not GPU clearance.
+**Issue #10:** resolve/hash-lock the actual GPU variant (not a prerequisite for closing #2); inspect actual A100 runtime versions, vendor/native dependencies, measured behavior and separate installation instructions. CPU package inventory is not GPU clearance.
 
 **Issues #11/#12:** disclose limitations and runtime exceptions in README; require explicit public release authorization and rights review for weights/tokenizer/data. First Model can deliver a local HF model without being an ASF release; claiming ASF distribution readiness remains blocked on unresolved items above.
 
