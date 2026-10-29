@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Mapache
+.pi
+.mcp.json
+
+# Large generated model binaries stay in the durable workspace artifact directory;
+# GitHub rejects files larger than 100 MB.
+artifacts/**/checkpoint/*.pt
+artifacts/**/export/*.safetensors
+

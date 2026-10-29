@@ -1,0 +1,48 @@
+{
+  "status": "verified_benchmark_artifacts_not_retained",
+  "dataset": {
+    "name": "HuggingFaceFW/fineweb-edu",
+    "config": "sample-10BT",
+    "train_documents": 30000,
+    "validation_documents": 1000,
+    "train_tokens": 35491615,
+    "train_sequences": 17329,
+    "validation_tokens": 1122070,
+    "validation_sequences": 547,
+    "manifest_identity": "c1fcc5629bf9d7fe4c933ffc09041c876460095c21c4d8d6ce83ccf8d4cd3236"
+  },
+  "hardware": {
+    "gpu": "NVIDIA A100-SXM4-80GB",
+    "vram_mib": 81920,
+    "driver": "580.82.07",
+    "torch": "2.11.0+cu130",
+    "cuda": "13.0",
+    "bf16_supported": true
+  },
+  "recipe": "300m-a100",
+  "parameters": 298103808,
+  "requested_targets": 31441920,
+  "completed_steps": 120,
+  "completed_targets": 31441920,
+  "warmup_steps": 20,
+  "measured_targets": 26201600,
+  "measured_seconds": 668.178008904,
+  "targets_per_second": 39213.50246617364,
+  "peak_allocated_bytes": 32867525632,
+  "peak_reserved_bytes": 35657875456,
+  "validation": {
+    "step": 120,
+    "loss": 6.530855254306989,
+    "perplexity": 685.9846520063311,
+    "prediction_targets": 262016
+  },
+  "export_verification": {
+    "local_files_only": true,
+    "trust_remote_code": false,
+    "parameters": 298103808,
+    "vocab_size": 32000,
+    "tied_embeddings": true,
+    "logits_shape": [1, 4, 32000]
+  },
+  "artifact_status": "The Colab checkpoint, tokenizer, export, metrics, samples, and evaluation report were verified in the remote session, but the runner was replaced during transfer before they could be copied into this 4GB workspace. No local durable artifact is claimed from this record."
+}

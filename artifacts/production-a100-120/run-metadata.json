@@ -1,0 +1,28 @@
+{
+  "recipe": "300m-a100",
+  "dataset": "HuggingFaceFW/fineweb-edu",
+  "dataset_config": "sample-10BT",
+  "train_documents": 30000,
+  "validation_documents": 1000,
+  "a100_source_run": {
+    "hardware": "NVIDIA A100-SXM4-80GB",
+    "precision": "bf16",
+    "updates": 120,
+    "consumed_tokens": 31441920,
+    "parameter_count": 298103808,
+    "evaluation_loss": 6.106940815649423,
+    "evaluation_perplexity": 448.963151142471
+  },
+  "checkpoint": {
+    "path": "checkpoint/checkpoint-00000001.pt",
+    "format": "trashpanda.checkpoint.v1",
+    "checkpoint_step": 1,
+    "consumed_tokens": 2047,
+    "origin": "one real offline recovery update from the verified A100 HF export",
+    "optimizer_state_entries": 200,
+    "includes": ["model", "optimizer", "RNG", "PCG64 sampler/data position", "tokenizer snapshot", "configuration"]
+  },
+  "export": "export/",
+  "export_model_sha256": "a76d333659256185fd317ed89e77bbfa9437a358fa23a95c0f75fa7d9bd6eae2",
+  "verification": "checkpoint/verification.json"
+}

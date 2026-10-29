@@ -1,0 +1,8 @@
+{
+  "batches": 69,
+  "device": "cuda",
+  "loss": 6.106940815649423,
+  "parameter_count": 298103808,
+  "perplexity": 448.963151142471,
+  "tokens": 1119709
+}

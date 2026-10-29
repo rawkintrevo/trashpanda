@@ -1,0 +1,25 @@
+{
+  "files": {
+    "checkpoint/checkpoint-00000001.pt": {
+      "bytes": 1788917565,
+      "sha256": "1b04946de29670c77dcefd54fb5929eb16a56ad35f09b90f02995eb2f88747a0"
+    },
+    "export/model.safetensors": {
+      "bytes": 1192437904,
+      "sha256": "a76d333659256185fd317ed89e77bbfa9437a358fa23a95c0f75fa7d9bd6eae2"
+    }
+  },
+  "root": "artifacts/production-a100-120",
+  "storage": "workspace-local; large binaries intentionally excluded from GitHub commit because GitHub rejects files over 100 MB",
+  "tracked_files": [
+    "export/config.json",
+    "export/generation_config.json",
+    "export/special_tokens_map.json",
+    "export/tokenizer.json",
+    "export/tokenizer_config.json",
+    "report/evaluation.json",
+    "report/samples.json",
+    "run-metadata.json",
+    "checkpoint/verification.json"
+  ]
+}

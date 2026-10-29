@@ -1,0 +1,11 @@
+{
+  "bytes": 1788917565,
+  "checkpoint": "artifacts/production-a100-120/checkpoint/checkpoint-00000001.pt",
+  "consumed_tokens": 2047,
+  "format": "trashpanda.checkpoint.v1",
+  "optimizer_state_entries": 200,
+  "parameter_count": 298103808,
+  "sampler_position_after_resume": 2,
+  "tokenizer_vocab_size": 32000,
+  "update_step": 1
+}
