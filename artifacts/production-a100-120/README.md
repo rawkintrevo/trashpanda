@@ -1,21 +1,27 @@
-# A100 production and recovery artifacts
+# Historical A100 and offline recovery records
 
-This directory contains the verified native Hugging Face export and a complete
-atomic recovery checkpoint:
+These are **experiment records**, not a completed 6B-target model release or a
+validated organizational provenance bundle. See the
+[evidence and artifact availability guide](../../docs/experiments.md).
 
-- `export/`: native HF Llama export and tokenizer
-- `checkpoint/checkpoint-00000001.pt`: model, AdamW optimizer state, RNG
-  state, PCG64 sampler/data position, tokenizer snapshot, and full config
-- `checkpoint/verification.json`: independent offline reload/resume probe
-- `report/`: CUDA evaluation and sampling outputs
-- `run-metadata.json`: dataset, hardware, hashes, and provenance
+- `export/`: tracked HF configuration/tokenizer files; the large model payload is
+  ignored by Git and is not included in a fresh clone.
+- `checkpoint/verification.json`: metadata from a separate step-1 offline recovery
+  experiment initialized from reported A100-exported weights. It does not contain
+  the original step-120 optimizer history or prove a real post-reload training update.
+- `report/`: retained evaluation and sampling results, not independently regenerated
+  by the documentation changes.
+- `run-metadata.json`: curated experiment/provenance description, not a record
+  automatically produced by the current export path.
+- `artifact-manifest.json`: expected sizes/hashes for the large payloads; no public
+  download location or independent durability guarantee.
 
-The source A100 run used `HuggingFaceFW/fineweb-edu`, config `sample-10BT`,
-30,000 training documents, 1,000 validation documents, BF16 A100 hardware,
-120 updates, and 31,441,920 target tokens. Its model has exactly 298,103,808
-parameters and validation perplexity 448.963151142471.
+The recorded A100-source run used FineWeb-Edu `sample-10BT`, 30,000 training and
+1,000 validation documents, and 120 updates / 31,441,920 prediction targets.
+The checkpoint record describes a different state: one offline update / 2,047
+targets. Do not treat this checkpoint and the export as an equivalent pair.
 
-The retained checkpoint is a complete recovery checkpoint built from those
-verified A100 weights and advanced through one real offline optimizer update.
-The verification reloads it, restores optimizer/RNG/sampler/tokenizer/config
-state, and successfully advances the sampler and optimizer after reload.
+Workspace paths may hold deferred large-file pointers. Materialization and actual
+payload verification are required before loading; see the linked guide. A saved
+verification summary alone is not evidence of machine-loss recovery or completion
+of First Model.
