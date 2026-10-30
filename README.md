@@ -1,87 +1,62 @@
-# trashpanda
+# Trashpanda
 
-Deterministic tiny/production Llama training from JSONL to native Hugging Face
-files. Source contains no model or dataset assets.
+**Open-weight models with an accountable supply chain.**
 
-## Offline tiny quickstart
+Trashpanda is being built for organizations that need models trained on known,
+organization-approved data—and evidence of what went into them. The goal is a
+practical workflow for selecting a model, training it, and delivering weights
+with inspectable provenance, not another PyTorch or Hugging Face replacement.
 
-Install dependencies in an environment with CPU PyTorch:
+**Today:** an experimental single-machine Llama training foundation. The broader
+supply-chain assurance workflow is a roadmap, not a delivered certification or
+privacy guarantee. [Read the vision and boundaries →](docs/vision.md)
 
-```bash
-python -m pip install -e '.[test]'
-python - <<'PY'
-import json
-text = " ".join(f"w{i % 29}" for i in range(128))
-for name in ("train.jsonl", "validation.jsonl"):
-    with open(name, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"text": text}) + "\\n")
-PY
-python -m trashpanda prepare --train train.jsonl --validation validation.jsonl --output prepared --recipe tiny
-python -m trashpanda train --data prepared --recipe tiny --output run
-python -m trashpanda evaluate --checkpoint run/checkpoint-00000006.pt --data prepared
-python -m trashpanda export --checkpoint run/checkpoint-00000006.pt --output exported
-```
+## What is implemented
 
-The tiny contract is vocab 32, 2 Llama layers, hidden 32, intermediate 64,
-context 32, effective batch 4 (microbatch 2), FP32 CPU, and 744 shifted target
-tokens. The project-owned WordLevel tokenizer has IDs 0/1/2 followed by `w0`
-through `w28`; it never inserts BOS or EOS. Preparation writes little-endian
-uint16 shards, never pads, and records the exact dropped tail per split.
+| Capability | Current scope and implementation details |
+| --- | --- |
+| Local data preparation | Separate train/validation JSONL → token shards, counts, and integrity hashes. [How data flows](docs/implementation/data.md) |
+| Training and checkpoint state | Two fixed Llama recipes, token-budgeted PyTorch training, model/optimizer/RNG/sampler saves and resume support. [How training and recovery work—and their limits](docs/implementation/training.md) |
+| Evaluation and model export | Loss/perplexity, sampling, and native Hugging Face model/tokenizer files. [How evaluation and export work](docs/implementation/export.md) |
+| Partial provenance metadata | Prepared-data and tokenizer hashes, configuration, training counters, and logs. These are **not yet bound into a complete model provenance record**. [What is recorded today](docs/implementation/provenance.md) |
 
-The production `300m-a100` recipe constructs `transformers.LlamaForCausalLM`
-from `LlamaConfig` with SDPA and tied embeddings. It has exactly **298,103,808**
-parameters, vocab 32000, 22 layers, hidden 1024, intermediate 2560, context
-2048, batch 128/microbatch 8, BF16 CUDA, 6B target tokens, and checkpoint
-interval 500. Full production training is intentionally not part of the tiny
-smoke test. A verified 120-step A100 benchmark and FineWeb-Edu run are recorded
-in `reports/first-model-a100-benchmark.json`; the report explicitly distinguishes
-remote verification from durable artifact retention.
+[First Model (#1)](https://github.com/rawkintrevo/trashpanda/issues/1) is the initial
+milestone, not the whole project. Historical A100 records describe bounded
+experiments; **the configured 6B-target training and final-artifact delivery are
+not established as complete**. [Evidence and artifact availability →](docs/experiments.md)
 
-## FineWeb-Edu adapter
+## What is next
 
-With optional `datasets` and a locally cached pinned Mistral tokenizer:
+| Direction | Proposed implementation |
+| --- | --- |
+| Provenance that travels with the model | Bind datasets, training times, configuration, lineage, and approval evidence to the exported artifact. [Proposal](docs/roadmap/provenance.md) |
+| CLI-selectable models | Support additional model architectures through explicit adapters/recipes, preserving evidence and recovery contracts. [Proposal](docs/roadmap/model-selection.md) |
+| Federated training | Enable organizations to collaborate while retaining proprietary raw data locally, with an explicit privacy/threat model. [Proposal](docs/roadmap/federated-training.md) |
 
-```bash
-python scripts/prepare_fineweb_edu.py fineweb-prepared \
-  --tokenizer-cache /path/to/local/mistral-tokenizer \
-  --train-documents 30000 --validation-documents 1000
-```
+These are proposed capabilities, not working CLI options. The
+[roadmap](docs/roadmap/README.md) also tracks the remaining first-model work.
 
-The adapter streams FineWeb-Edu and writes only requested prepared output.
-Tokenizer loading is local-only and uses `trust_remote_code=False`. Native HF
-export uses the model's standard `save_pretrained` format and does not require
-custom code.
+## Where Trashpanda fits
 
-## Strict overrides
+- **Apache Sourcelume Sample** demonstrates training-data provenance records and
+  registry exchange. Trashpanda aims to apply such evidence to an organizational
+  model-production workflow; Sourcelume compatibility is a proposal, not an integration.
+- **OLMo / OLMo-core** provide open models and research training infrastructure.
+  Trashpanda's intended focus is the organization's approved inputs and evidence
+  for *its* model, rather than another model family or general training framework.
 
-Recipe defaults can be overridden only with a flat JSON object containing any
-of `token_budget`, `microbatch_size`, `learning_rate`, and `repeat_data`:
+[Detailed comparison, current gaps, and upstream sources →](docs/comparisons.md)
 
-```bash
-python -m trashpanda train --data prepared --recipe tiny --output run \
-  --tokens 744 --microbatch-size 2 --no-repeat-data
-```
+## Start here
 
-Unknown or nested keys are rejected. `--resume` resumes an atomic update-boundary
-checkpoint containing model, optimizer, PCG64 sampler, config, RNG, and tokenizer
-provenance. A replacement Colab run must copy the completed checkpoint/export to
-an operator-provided durable destination before claiming model delivery.
-The retained workspace artifact manifest is at
-`artifacts/production-a100-120/artifact-manifest.json`; its 1.79 GB checkpoint
-and 1.19 GB safetensors file are intentionally excluded from GitHub commits
-because GitHub rejects files over 100 MB, but remain in the workspace artifact
-directory with SHA-256 provenance.
+- [CPU quickstart](docs/getting-started.md): exercise preparation, training, resume,
+  evaluation, and offline export without a GPU or downloaded training data.
+- [Implementation map](docs/implementation/README.md): source modules and current limitations.
+- [Data and compute examples](docs/experiments.md): optional FineWeb-Edu and A100/Colab workflows.
 
-## Provisioned A100 production driver
+Project code is [Apache-2.0 licensed](LICENSE). Data, tokenizer, and weight rights
+require separate review. “Approved data” means approved under an organization's
+policy—not automatically safe, legally cleared, or certified by Trashpanda.
 
-After the Colab CLI has provisioned an A100 and the repository is available on
-that VM, run the complete configured target with:
-
-```bash
-python scripts/run_a100_production.py --root /content/fineweb-run --prepare
-```
-
-The driver defaults to the full 6,000,000,000-target `300m-a100` recipe and
-writes the resumable checkpoint, metrics, evaluation, samples, and native HF
-export beneath the selected root. Use `--max-steps` only for a bounded
-benchmark.
+For contributions, start with the [open issues](https://github.com/rawkintrevo/trashpanda/issues)
+and distinguish fixes to current behavior from changes to the proposed designs.
