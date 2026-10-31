@@ -124,6 +124,9 @@ def save_checkpoint(
     config: Mapping[str, Any],
     sampler_state: Mapping[str, Any],
     tokenizer_snapshot: Mapping[str, Any],
+    tokenizer_files: Mapping[str, bytes] | None = None,
+    data_identity: str | None = None,
+    scheduler: Any | None = None,
     extra: Mapping[str, Any] | None = None,
 ) -> Path:
     """Write a complete checkpoint by fsyncing a temporary file then replacing."""
@@ -139,6 +142,9 @@ def save_checkpoint(
         "config": dict(config),
         "sampler": _cpu_state(dict(sampler_state)),
         "tokenizer": dict(tokenizer_snapshot),
+        "tokenizer_files": dict(tokenizer_files or {}),
+        "data_identity": data_identity,
+        "scheduler": _cpu_state(scheduler.state_dict()) if scheduler is not None else None,
         "rng": capture_rng_state(),
     }
     if extra:

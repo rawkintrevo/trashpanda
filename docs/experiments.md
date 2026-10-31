@@ -73,7 +73,10 @@ independent storage. For a deliberately bounded experiment:
 
 ```bash
 python scripts/run_a100_production.py \
-  --root /content/fineweb-benchmark --prepare --max-steps 120
+  --root /content/fineweb-benchmark --prepare --max-steps 2
+# After copying the checkpoint to a fresh runtime, run a real continuation:
+python scripts/run_a100_production.py \
+  --root /content/fineweb-benchmark --resume /content/fineweb-benchmark/checkpoints/checkpoint-00000002.pt --max-steps 3
 ```
 
 Omitting `--max-steps` requests the 6B-target recipe; it is not evidence that the
@@ -84,6 +87,34 @@ licenses. CPU tests do not validate a GPU installation or guarantee runtime/cost
 
 The driver writes checkpoints and metrics under `checkpoints/`, creates `export/`,
 and embeds evaluation and samples in `run-metadata.json`. It does not generate the
-historical `report/` layout above. Its dataset labels are hard-coded even when
-reusing prepared data, and it has no resume argument. Use the core CLI with explicit
-matching settings for resume; do not restart this driver and assume automatic recovery.
+historical `report/` layout above. It accepts `--resume CHECKPOINT` and performs a
+real resumed update, but the caller must preserve the prepared directory and use
+matching recipe settings.
+
+### Required bounded A100 evidence run
+
+In a Colab runtime manually configured for **A100 GPU**, install the pinned checkout
+and dependencies, then run:
+
+```bash
+!git clone <authorized-checkout-url> /content/trashpanda
+%cd /content/trashpanda
+!pip install -e '.[datasets]'
+!python scripts/run_a100_production.py --root /content/fineweb-benchmark --prepare --max-steps 2
+!python scripts/validate_recovery.py \\
+  --prepared /content/fineweb-benchmark/prepared \\
+  --checkpoint /content/fineweb-benchmark/checkpoints/checkpoint-00000002.pt \\
+  --fresh-root /content/fineweb-recovery
+```
+
+`validate_recovery.py` copies the prepared bytes and checkpoint to a new root,
+restores optimizer/scheduler/RNG/sampler/tokenizer/config state, performs one real
+forward/backward/optimizer update, evaluates, samples, exports, and loads both the
+native HF model and tokenizer with `local_files_only=True`. Preserve the resulting
+`/content/fineweb-benchmark` and `/content/fineweb-recovery` directories in an
+authorized artifact store; `recovery-validation.json` records per-file SHA-256,
+source checkpoint hash, counters, evaluation, sample, and offline reload shape.
+
+This environment cannot provision or authenticate a Colab runtime, so no A100 run
+or retrievable remote artifact is claimed by this commit. Historical files above are
+not substitutes for this validation report.

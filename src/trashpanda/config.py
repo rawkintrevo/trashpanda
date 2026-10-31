@@ -85,6 +85,8 @@ class TrainingConfig:
     precision: str
     device: str
     learning_rate: float = 3e-4
+    warmup_steps: int = 0
+    min_lr_ratio: float = 0.1
     weight_decay: float = 0.1
     beta1: float = 0.9
     beta2: float = 0.95
@@ -104,8 +106,8 @@ class TrainingConfig:
             raise ValueError("training.precision must be fp32, bf16, or fp16")
         if self.device not in {"cpu", "cuda", "auto"}:
             raise ValueError("training.device must be cpu, cuda, or auto")
-        if self.learning_rate <= 0 or self.weight_decay < 0 or not 0 <= self.beta1 < 1 or not 0 <= self.beta2 < 1:
-            raise ValueError("invalid optimizer hyperparameters")
+        if self.learning_rate <= 0 or self.warmup_steps < 0 or not 0 <= self.min_lr_ratio <= 1 or self.weight_decay < 0 or not 0 <= self.beta1 < 1 or not 0 <= self.beta2 < 1:
+            raise ValueError("invalid optimizer or scheduler hyperparameters")
         if self.grad_clip <= 0 or self.log_interval <= 0 or self.seed < 0:
             raise ValueError("invalid training controls")
         if not isinstance(self.repeat_data, bool):
@@ -263,14 +265,14 @@ def _recipes() -> dict[str, Config]:
             recipe_name="tiny",
             model=ModelConfig(vocab_size=32, num_layers=2, hidden_size=32, intermediate_size=64, context_length=32, num_attention_heads=4),
             data=DataConfig(tokenizer_name="trashpanda/tiny-wordlevel", tokenizer_revision="project"),
-            training=TrainingConfig(batch_size=4, microbatch_size=2, token_budget=744, checkpoint_interval=3, precision="fp32", device="cpu", learning_rate=0.001, seed=42, repeat_data=True),
+            training=TrainingConfig(batch_size=4, microbatch_size=2, token_budget=744, checkpoint_interval=3, precision="fp32", device="cpu", learning_rate=0.001, warmup_steps=0, min_lr_ratio=0.1, seed=42, repeat_data=True),
             runtime=RuntimeConfig(output_dir="runs/tiny"),
         ),
         "300m-a100": Config(
             recipe_name="300m-a100",
             model=ModelConfig(vocab_size=32_000, num_layers=22, hidden_size=1024, intermediate_size=2560, context_length=2048, num_attention_heads=16),
             data=DataConfig(),
-            training=TrainingConfig(batch_size=128, microbatch_size=8, token_budget=6_000_000_000, checkpoint_interval=500, precision="bf16", device="cuda", learning_rate=3e-4, seed=42, repeat_data=True),
+            training=TrainingConfig(batch_size=128, microbatch_size=8, token_budget=6_000_000_000, checkpoint_interval=500, precision="bf16", device="cuda", learning_rate=3e-4, warmup_steps=200, min_lr_ratio=0.1, seed=42, repeat_data=True),
             runtime=RuntimeConfig(output_dir="runs/300m-a100"),
         ),
     }

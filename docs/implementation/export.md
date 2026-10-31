@@ -28,11 +28,13 @@ in #1. The optional production driver evaluates and samples after training retur
 directory. Resulting native model/tokenizer files do not require custom remote
 Python classes. [The quickstart](../getting-started.md) includes local-only loading.
 
-For a production checkpoint, supply the matching saved tokenizer with the CLI's
-`--tokenizer` argument. A normal checkpoint stores tokenizer metadata, not a full
-portable tokenizer snapshot. The export contains no optimizer state and currently
-adds no automatic provenance record, model card, license inventory, or file-hash
-completion manifest. These are gaps, not automatic consequences of the HF format.
+For a production checkpoint, the normal checkpoint contains the captured tokenizer
+files and can be exported offline. A CLI `--tokenizer` may still explicitly supply
+the matching local tokenizer. The export contains no optimizer state, but it adds
+`trashpanda-provenance.json` linking the export to the checkpoint, resolved config,
+prepared-data identity, and tokenizer snapshot. This does not establish source
+rights, approvals, timestamps, signatures, or a license inventory; see
+[tokenizer notices](tokenizer-notices.md).
 
 The existing sampling/evaluation CLI may also need the configured production
 tokenizer in its local cache; it does not reconstruct tokenizer files from a `.pt`

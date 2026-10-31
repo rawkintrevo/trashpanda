@@ -38,6 +38,13 @@ def make_hf_config(config: ModelConfig) -> Any:
         attention_bias=False,
         mlp_bias=False,
         rope_theta=10_000.0,
+        rope_scaling=None,
+        hidden_act="silu",
+        attention_dropout=0.0,
+        initializer_range=0.02,
+        bos_token_id=1,
+        eos_token_id=2,
+        pad_token_id=None,
     )
     try:
         hf_config = LlamaConfig(attn_implementation="sdpa", **kwargs)
@@ -61,6 +68,22 @@ def build_model(config: ModelConfig, *, seed: int | None = None, device: str | N
         model = LlamaForCausalLM(make_hf_config(config))
     if config.tie_embeddings:
         model.tie_weights()
+
+    # ``max_position_embeddings`` is a serialization/configuration value, not a
+    # hard input guard in every Transformers release.  Keep the application
+    # contract explicit without introducing a custom HF model class.
+    def _check_context(_module: Any, inputs: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+        input_ids = kwargs.get("input_ids")
+        if input_ids is None and inputs:
+            input_ids = inputs[0]
+        if input_ids is not None and getattr(input_ids, "ndim", 0) >= 2:
+            length = int(input_ids.shape[-1])
+            if length > config.context_length:
+                raise ValueError(
+                    f"input length {length} exceeds configured context length {config.context_length}"
+                )
+
+    model.register_forward_pre_hook(_check_context, with_kwargs=True)
     actual = count_parameters(model)
     expected = config.parameter_count()
     if actual != expected:

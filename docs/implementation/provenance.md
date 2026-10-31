@@ -8,10 +8,10 @@ It does not yet deliver the model supply-chain evidence described in the vision.
 | Location | Automatically recorded | Not established by that record |
 | --- | --- | --- |
 | Prepared `manifest.json` | Shard hashes/counts, tokenizer metadata and saved-file hashes, sequence format, manifest identity | Original source/version, usage rights, approval, acquisition time |
-| Normal checkpoint `.pt` | Model/optimizer/RNG/sampler state, counters, config, tokenizer metadata | Dataset-content binding, complete tokenizer files, UTC training dates, code/environment identity, approvals |
+| Normal checkpoint `.pt` | Model/optimizer/scheduler/RNG/sampler state, counters, resolved config, prepared-data identity, tokenizer metadata and captured tokenizer files | UTC training dates, code/environment identity, approvals |
 | `metrics.jsonl` | Step, targets, loss, learning rate, elapsed duration | Wall-clock timestamps, verifiable run identity, signed audit trail |
 | Production driver `run-metadata.json` | Counters, elapsed duration, evaluation/samples, paths, recipe and dataset labels | Independently verified dataset lineage; dataset labels are hard-coded even when existing prepared data are used |
-| Native HF export | Model config, weights, tokenizer and generation files | Embedded training history, dataset records, timestamps, signatures or approval evidence |
+| Native HF export | Model config, weights, tokenizer/generation files, and `trashpanda-provenance.json` linking config/data identity to the source checkpoint | Timestamps, signatures, source rights or approval evidence |
 
 Sources: [`prepare.py`](../../src/trashpanda/prepare.py),
 [`checkpoint.py`](../../src/trashpanda/checkpoint.py),
@@ -26,8 +26,8 @@ identity into its checkpoints, and export does not carry it forward. The current
 non-tiny `tokenizer_sha256` is a digest of selected metadata; separate file hashes
 identify tokenizer bytes. Do not confuse these two kinds of hash.
 
-Thus “we record some hashes and state” is true; “the model contains a complete
-record of what data trained it and when” is not yet true. Elapsed seconds are not
+Thus the checkpoint/export now bind prepared bytes and recovery state, but do not claim
+complete source lineage, approvals, timestamps, or a signed audit record. Elapsed seconds are not
 a training date. The HF dataset adapter does not pin an immutable dataset revision.
 
 ## Historical records are not an automatic provenance system

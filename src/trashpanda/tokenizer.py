@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
+import tempfile
 from typing import Any, Protocol, Sequence
 
 from .config import MISTRAL_TOKENIZER_FILE_HASHES, MISTRAL_TOKENIZER_NAME, MISTRAL_TOKENIZER_REVISION
@@ -56,12 +58,18 @@ class TinyWordLevelTokenizer:
     def __len__(self) -> int:
         return self.vocab_size
 
-    def encode(self, text: str, *, add_special_tokens: bool = False) -> list[int]:
+    def encode(self, text: str, *, add_special_tokens: bool = False, split_special_tokens: bool = True) -> list[int]:
         # add_special_tokens is intentionally ignored: the tiny tokenizer never
         # inserts BOS/EOS, including when callers pass True explicitly.
         if self._tokenizer is not None:
-            return list(self._tokenizer.encode(text, add_special_tokens=False).ids)
-        return [self.vocab.get(token, self.unk_token_id) for token in re.findall(r"\S+", text)]
+            encoding = self._tokenizer.encode(text, add_special_tokens=False)
+            # The three marker strings are ordinary source text for this
+            # fixture, not registered special tokens.
+            return [
+                self.unk_token_id if token in TINY_SPECIAL_TOKENS else int(token_id)
+                for token, token_id in zip(encoding.tokens, encoding.ids)
+            ]
+        return [self.unk_token_id if token in TINY_SPECIAL_TOKENS else self.vocab.get(token, self.unk_token_id) for token in re.findall(r"\S+", text)]
 
     def decode(self, ids: Sequence[int]) -> str:
         if self._tokenizer is not None:
@@ -167,6 +175,42 @@ def tokenizer_snapshot(tokenizer: Any) -> TokenizerSnapshot:
     )
 
 
+def _download_pinned_assets(name: str, revision: str, *, cache_dir: str | Path | None = None) -> str:
+    if name != MISTRAL_TOKENIZER_NAME or revision != MISTRAL_TOKENIZER_REVISION:
+        raise ValueError("production tokenizer acquisition requires the pinned Mistral repository and revision")
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise RuntimeError("huggingface_hub is required for tokenizer acquisition") from exc
+    target = Path(cache_dir) if cache_dir is not None else Path(tempfile.mkdtemp(prefix="trashpanda-tokenizer-"))
+    target.mkdir(parents=True, exist_ok=True)
+    for filename, expected in MISTRAL_TOKENIZER_FILE_HASHES.items():
+        downloaded = Path(hf_hub_download(name, filename=filename, revision=revision, cache_dir=str(target)))
+        destination = target / filename
+        if downloaded.resolve() != destination.resolve():
+            shutil.copyfile(downloaded, destination)
+        actual = hashlib.sha256(destination.read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError(f"pinned tokenizer hash mismatch for {filename}: expected {expected}, got {actual}")
+    return str(target)
+
+
+def acquire_pinned_tokenizer(
+    *, cache_dir: str | Path | None = None,
+    local_files_only: bool = False,
+) -> Any:
+    """Acquire only the pinned three-file tokenizer contract."""
+    if local_files_only:
+        raise ValueError("pinned tokenizer acquisition requires network access; use load_tokenizer for local files")
+    return load_tokenizer(
+        MISTRAL_TOKENIZER_NAME,
+        revision=MISTRAL_TOKENIZER_REVISION,
+        vocab_size=32_000,
+        local_files_only=False,
+        cache_dir=cache_dir,
+    )
+
+
 def load_tokenizer(
     name: str = MISTRAL_TOKENIZER_NAME,
     *,
@@ -174,29 +218,51 @@ def load_tokenizer(
     vocab_size: int | None = None,
     local_files_only: bool = True,
     tokenizer_sha256: str | None = None,
+    cache_dir: str | Path | None = None,
 ) -> Any:
     if name in {"trashpanda/tiny-wordlevel", "trashpanda/deterministic-byte", "deterministic-byte", "local"}:
         tokenizer = TinyWordLevelTokenizer()
         if vocab_size is not None and vocab_size != tokenizer.vocab_size:
             raise ValueError("tiny WordLevel vocabulary is fixed at 32 tokens")
         return tokenizer
+    local_path = Path(name)
+    if local_path.is_dir() and vocab_size == len(TINY_VOCAB):
+        # Tiny fixtures are deliberately reloadable without contacting Hub or
+        # requiring a pretrained tokenizer class.
+        tokenizer_json = local_path / "tokenizer.json"
+        if tokenizer_json.is_file():
+            try:
+                payload = json.loads(tokenizer_json.read_text(encoding="utf-8"))
+                if len(payload.get("model", {}).get("vocab", {})) == len(TINY_VOCAB):
+                    return TinyWordLevelTokenizer()
+            except (OSError, json.JSONDecodeError, AttributeError):
+                pass
+    if name == MISTRAL_TOKENIZER_NAME and revision != MISTRAL_TOKENIZER_REVISION:
+        raise ValueError("the production tokenizer revision is pinned and cannot be changed")
     try:
         from transformers import AutoTokenizer
     except ImportError as exc:
         raise RuntimeError("transformers is required for a non-tiny tokenizer") from exc
+    source = name
+    local_hashes = raw_file_hashes(name) if Path(name).is_dir() else {}
+    if not local_files_only and not Path(name).is_dir():
+        # Avoid AutoTokenizer's broad Hub resolution: production acquisition is
+        # deliberately limited to the three pinned JSON assets and never asks
+        # for model weights or remote Python code.
+        source = _download_pinned_assets(name, revision, cache_dir=cache_dir)
+        local_hashes = raw_file_hashes(source)
     tokenizer = AutoTokenizer.from_pretrained(
-        name,
-        revision=revision,
-        local_files_only=local_files_only,
+        source,
+        revision=revision if source == name else None,
+        local_files_only=True if source != name else local_files_only,
         trust_remote_code=False,
         use_fast=True,
     )
     tokenizer.revision = revision
-    local_hashes = raw_file_hashes(name) if Path(name).is_dir() else {}
     # A prepared tokenizer directory is a normalized ``save_pretrained``
     # snapshot, so its file bytes need not equal the raw Hub blobs used for
-    # the pinned revision.  Preserve and record the local hashes; raw Hub
-    # provenance is enforced when loading by model name/revision.
+    # the pinned revision.  Preserve local hashes; raw acquisition is checked
+    # by _download_pinned_assets before loading.
     setattr(tokenizer, "trashpanda_file_hashes", local_hashes or dict(MISTRAL_TOKENIZER_FILE_HASHES))
     if tokenizer_sha256 and _snapshot_hash(tokenizer) != tokenizer_sha256:
         raise ValueError("tokenizer snapshot hash mismatch")
@@ -205,5 +271,5 @@ def load_tokenizer(
 
 __all__ = [
     "DeterministicTokenizer", "TinyWordLevelTokenizer", "Tokenizer", "TokenizerSnapshot",
-    "TINY_SPECIAL_TOKENS", "TINY_VOCAB", "load_tokenizer", "raw_file_hashes", "tokenizer_snapshot",
+    "TINY_SPECIAL_TOKENS", "TINY_VOCAB", "acquire_pinned_tokenizer", "load_tokenizer", "raw_file_hashes", "tokenizer_snapshot",
 ]

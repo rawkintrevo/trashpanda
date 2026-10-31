@@ -33,10 +33,11 @@ boundaries; no padding is introduced.
   `27d67f1b5f57dc0953326b2601d68371d40ea8da`; 2048-token sequences. Loading requests
   no remote code. A reused tokenizer does not mean pretrained model weights are loaded.
 
-The code records hashes of locally saved tokenizer files, but the current loader
-does not enforce all upstream raw-file hash constants. The CLI parses `--revision`
-for preparation but currently does not apply it. Do not use that flag as evidence
-that a different tokenizer revision was selected.
+The code records hashes of locally saved tokenizer files. Production acquisition
+is restricted to the three pinned JSON assets and verifies their upstream raw-file
+hash constants before loading. The CLI uses the recipe's pinned revision; a
+production revision different from the contract is rejected. Prepared normalized
+files are not expected to have the raw Hub hashes.
 
 ## Hugging Face example, not the product boundary
 
