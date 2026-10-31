@@ -111,7 +111,14 @@ def _write_split(
     input_paths = [input_path] if isinstance(input_path, (str, Path)) else list(input_path)
     for source_path in input_paths:
         for text in _iter_jsonl(source_path, text_field):
-            encoded = [int(token) for token in tokenizer.encode(text, add_special_tokens=False)]
+            try:
+                encoded = [int(token) for token in tokenizer.encode(
+                    text, add_special_tokens=False, split_special_tokens=True
+                )]
+            except TypeError:
+                # Older/local tokenizer APIs may not expose the keyword; they
+                # still receive the required no-special-token behavior.
+                encoded = [int(token) for token in tokenizer.encode(text, add_special_tokens=False)]
             eos_id = getattr(tokenizer, "eos_token_id", 2)
             if not isinstance(eos_id, int):
                 raise ValueError("tokenizer must expose an integer eos_token_id")
@@ -244,6 +251,13 @@ def read_manifest(path: str | Path) -> dict[str, Any]:
         value = json.load(handle)
     if value.get("format") not in {"trashpanda.shards.v2", "trashpanda.tokens.v1"}:
         raise ValueError("unsupported prepared dataset format")
+    identity = value.get("identity")
+    if identity:
+        unsigned = dict(value)
+        unsigned.pop("identity", None)
+        expected = hashlib.sha256(json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+        if identity != expected:
+            raise ValueError("prepared manifest identity mismatch")
     return value
 
 

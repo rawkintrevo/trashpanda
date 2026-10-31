@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import json
 import math
 import os
+import tempfile
 import time
 import random
 import signal
@@ -190,6 +191,14 @@ def train(
         lr=config.training.learning_rate,
         betas=(config.training.beta1, config.training.beta2),
     )
+    total_updates = max(1, schedule.updates)
+    def lr_factor(step: int) -> float:
+        if config.training.warmup_steps and step < config.training.warmup_steps:
+            return max(1e-12, (step + 1) / config.training.warmup_steps)
+        progress = min(1.0, max(0.0, (step - config.training.warmup_steps) / max(1, total_updates - config.training.warmup_steps)))
+        cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+        return config.training.min_lr_ratio + (1.0 - config.training.min_lr_ratio) * cosine
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_factor)
     sampler = PCG64Sampler(len(dataset), config.training.seed, repeat_data=config.training.repeat_data)
     state = TrainingState()
     resume_path: Path | None = None
@@ -198,10 +207,16 @@ def train(
         payload = load_checkpoint(resume_path, model=model, optimizer=optimizer, map_location=str(device))
         state = TrainingState.from_dict(payload["state"])
         sampler.load_state_dict(payload["sampler"])
+        expected_identity = dataset.manifest.get("identity")
+        if payload.get("data_identity") and expected_identity and payload["data_identity"] != expected_identity:
+            raise ValueError("checkpoint data identity does not match prepared dataset")
+        if payload.get("scheduler"):
+            scheduler.load_state_dict(payload["scheduler"])
         if payload.get("rng"):
             restore_rng_state(payload["rng"])
-        if int(payload.get("config", {}).get("model", {}).get("vocab_size", config.model.vocab_size)) != config.model.vocab_size:
-            raise ValueError("checkpoint model configuration does not match current recipe")
+        saved_config = payload.get("config", {})
+        if saved_config.get("model") != config.to_dict()["model"] or saved_config.get("training") != config.to_dict()["training"]:
+            raise ValueError("checkpoint model/training configuration does not match current recipe")
 
     destination = Path(checkpoint_dir or config.runtime.checkpoint_dir or config.runtime.output_dir)
     destination.mkdir(parents=True, exist_ok=True)
@@ -253,13 +268,14 @@ def train(
                 scaler.update()
             else:
                 optimizer.step()
+            scheduler.step()
             state.update_step += 1
             state.consumed_tokens += schedule.tokens_per_update
             should_save = state.update_step % config.training.checkpoint_interval == 0
             should_stop = boundary.requested
             if should_save or should_stop:
                 last_checkpoint = _save_training_checkpoint(
-                    destination, model, optimizer, state, config, sampler, tokenizer
+                    destination, model, optimizer, scheduler, state, config, sampler, tokenizer, dataset
                 )
             with metrics_path.open("a", encoding="utf-8") as metrics:
                 metrics.write(json.dumps({
@@ -275,7 +291,7 @@ def train(
     # Always leave a checkpoint at the actual boundary, including a tiny run
     # shorter than the configured interval.
     if last_checkpoint is None or state.update_step > 0:
-        last_checkpoint = _save_training_checkpoint(destination, model, optimizer, state, config, sampler, tokenizer)
+        last_checkpoint = _save_training_checkpoint(destination, model, optimizer, scheduler, state, config, sampler, tokenizer, dataset)
     return TrainResult(
         state=state,
         checkpoint=last_checkpoint,
@@ -292,23 +308,36 @@ def _save_training_checkpoint(
     destination: Path,
     model: Any,
     optimizer: Any,
+    scheduler: Any,
     state: TrainingState,
     config: Config,
     sampler: PCG64Sampler,
     tokenizer: Any | None,
+    dataset: MMapTokenDataset,
 ) -> Path:
     if tokenizer is None:
         if config.model.vocab_size != 32:
             raise ValueError("production training requires its pinned tokenizer object for checkpoint provenance")
         tokenizer = DeterministicTokenizer()
+    tokenizer_files: dict[str, bytes] = {}
+    tokenizer_dir = Path(dataset.manifest_path).parent / "tokenizer"
+    if tokenizer_dir.is_dir():
+        tokenizer_files = {file.relative_to(tokenizer_dir).as_posix(): file.read_bytes() for file in tokenizer_dir.rglob("*") if file.is_file()}
+    elif hasattr(tokenizer, "save_pretrained"):
+        with tempfile.TemporaryDirectory(prefix="trashpanda-tokenizer-") as temp:
+            tokenizer.save_pretrained(temp)
+            tokenizer_files = {file.relative_to(temp).as_posix(): file.read_bytes() for file in Path(temp).rglob("*") if file.is_file()}
     return save_checkpoint(
         checkpoint_path(destination, state.update_step),
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
         state=state,
         config=config.to_dict(),
         sampler_state=sampler.state_dict(),
         tokenizer_snapshot=tokenizer_snapshot(tokenizer).to_dict(),
+        tokenizer_files=tokenizer_files,
+        data_identity=dataset.manifest.get("identity"),
     )
 
 

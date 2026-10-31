@@ -18,7 +18,7 @@ privacy guarantee. [Read the vision and boundaries →](docs/vision.md)
 | Local data preparation | Separate train/validation JSONL → token shards, counts, and integrity hashes. [How data flows](docs/implementation/data.md) |
 | Training and checkpoint state | Two fixed Llama recipes, token-budgeted PyTorch training, model/optimizer/RNG/sampler saves and resume support. [How training and recovery work—and their limits](docs/implementation/training.md) |
 | Evaluation and model export | Loss/perplexity, sampling, and native Hugging Face model/tokenizer files. [How evaluation and export work](docs/implementation/export.md) |
-| Partial provenance metadata | Prepared-data and tokenizer hashes, configuration, training counters, and logs. These are **not yet bound into a complete model provenance record**. [What is recorded today](docs/implementation/provenance.md) |
+| Provenance-carrying checkpoints/exports | Prepared-data identity, resolved configuration, recovery state, tokenizer snapshot/files, and an export provenance record. Source rights, approvals, timestamps, and signatures remain outside the automated record. [What is recorded today](docs/implementation/provenance.md) |
 
 [First Model (#1)](https://github.com/rawkintrevo/trashpanda/issues/1) is the initial
 milestone, not the whole project. Historical A100 records describe bounded

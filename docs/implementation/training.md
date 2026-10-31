@@ -20,8 +20,9 @@ families. Source: [`model.py`](../../src/trashpanda/model.py),
 
 The production architecture has 298,103,808 unique parameters. The loop uses
 AdamW, gradient accumulation, global norm clipping, and nonfinite loss/gradient
-checks. Parameters remain FP32 in normal recipe construction. Current learning
-rate is constant; the warmup/decay scheduler specified in #1 is not implemented.
+checks. Parameters remain FP32 in normal recipe construction. The optimizer uses
+checkpointed linear warmup followed by cosine decay to the configured minimum
+learning-rate ratio.
 
 Targets per update are `batch × (context − 1)`; budgets round up to full updates.
 `--max-steps` is an absolute update ceiling, not an extra-step count. PCG64 sampling
@@ -40,7 +41,7 @@ Current CLI defaults to `tiny`; select the production recipe explicitly.
 
 - model tensors and AdamW optimizer state;
 - completed update/target/microstep counters;
-- configuration and tokenizer **metadata**, not the tokenizer files themselves;
+- the complete resolved configuration and tokenizer metadata plus tokenizer files;
 - PCG64 generator state, permutation, epoch, and cursor;
 - Python, NumPy, Torch CPU and available CUDA RNG state.
 
@@ -56,11 +57,11 @@ self-contained delivery contract.
 
 ## Recovery is partial, not a machine-loss guarantee
 
-Current resume does not restore the saved configuration wholesale or check complete
-data/tokenizer identity. Sampler restoration checks dataset size, which cannot
-prove content identity. Use the same recipe, overrides, tokenizer, and prepared
-bytes; keep an independent verified inventory. This operator discipline does not
-replace the missing software checks.
+Resume rejects changes to the saved model/training configuration and checks the
+prepared manifest identity (including shard and tokenizer file hashes). Sampler
+restoration also checks dataset size. This does not prove source rights or external
+dataset lineage. Keep an independent verified inventory and test a real resumed
+forward/backward/update in the replacement environment.
 
 Keep checkpoints, prepared shards/manifest, tokenizer assets, config/commands,
 and logs together. Copy a completed checkpoint to storage independent of the
@@ -73,8 +74,8 @@ The [quickstart](../getting-started.md) shows the current CLI's explicit `--reci
 `--data`, `--output`, and checkpoint-file `--resume` arguments. The production driver
 has no resume flag; use the core CLI for a continuation of an interrupted run.
 
-Additional gaps: no checkpoint retention policy, no versioned completion manifest
-with per-file verification, and metrics append on resume without deduplicating
-records beyond a restored checkpoint. Do not launch a long production run without
+Additional gaps: no checkpoint retention policy, no separate signed delivery
+manifest, and metrics append on resume without deduplicating records beyond a
+restored checkpoint. Do not launch a long production run without
 planning disk capacity and independent checkpoint copies. See the
 [first-model completion proposal](../roadmap/first-model.md).

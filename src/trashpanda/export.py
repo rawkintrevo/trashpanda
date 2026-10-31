@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import tempfile
 from typing import Any, Mapping
 
 try:
@@ -65,7 +67,27 @@ def export_checkpoint(
     load_checkpoint(checkpoint, model=model, map_location="cpu")
     if tokenizer is None and tokenizer_name:
         tokenizer = load_tokenizer(tokenizer_name, revision=config.data.tokenizer_revision, vocab_size=config.model.vocab_size, local_files_only=local_files_only)
-    return export_hf(model, output_dir, config=config, tokenizer=tokenizer)
+    if tokenizer is None and raw.get("tokenizer_files"):
+        # A normal checkpoint is self-contained: reconstruct the tokenizer from
+        # its captured bytes, so export does not need Hub access.
+        with tempfile.TemporaryDirectory(prefix="trashpanda-checkpoint-tokenizer-") as temp:
+            snapshot_dir = Path(temp)
+            for name, content in raw["tokenizer_files"].items():
+                target = snapshot_dir / str(name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            tokenizer = load_tokenizer(str(snapshot_dir), revision=config.data.tokenizer_revision, vocab_size=config.model.vocab_size, local_files_only=True)
+    exported = export_hf(model, output_dir, config=config, tokenizer=tokenizer)
+    provenance = {
+        "format": "trashpanda.export.provenance.v1",
+        "checkpoint": str(Path(checkpoint).name),
+        "data_identity": raw.get("data_identity"),
+        "config": raw.get("config"),
+        "tokenizer": raw.get("tokenizer"),
+        "checkpoint_format": raw.get("format"),
+    }
+    (exported / "trashpanda-provenance.json").write_text(json.dumps(provenance, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    return exported
 
 
 __all__ = ["export_checkpoint", "export_hf"]
